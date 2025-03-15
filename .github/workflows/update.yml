@@ -13,10 +13,6 @@ on:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-defaults:
-  run:
-    shell: bash --noprofile --norc -CeEuo pipefail {0}
-
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -28,12 +24,16 @@ jobs:
       - name: install 7z zip
         run: |
           sudo apt-get update
-          sudo apt-get install -y p7zip-full zip
+          sudo apt-get install -y p7zip-full zip jq
+
+          7z --version
+          zip --version
 
       - name: Get latest tag
         id: get_tag
         run: |
-          latest_tag=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -s "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/tags" | grep -m 1 '"name":' | awk -F'"' '{print $4}')
+          latest_tag=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -s "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/tags" | jq -r '.[0].name')
+          # latest_tag=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -s "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/tags" | grep -m 1 '"name":' | awk -F'"' '{print $4}')
           echo $latest_tag
           echo "tag=$latest_tag" >> $GITHUB_OUTPUT
 
