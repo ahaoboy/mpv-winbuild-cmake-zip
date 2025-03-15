@@ -39,34 +39,43 @@ jobs:
 
       - name: 7z to zip
         run: |
-          WORK_DIR="mpv-files"
           mkdir -p "$WORK_DIR"
           cd "$WORK_DIR"
-          RELEASE_URL="https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/${{ steps.get_tag.outputs.tag }}"
-          echo "Downloading all .7z files from $RELEASE_URL..."
-          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -sL "$RELEASE_URL" | grep -o 'href="[^"]*\.7z"' | cut -d'"' -f2 | while read -r file_url; do
-              if [[ "$file_url" != http* ]]; then
-                  file_url="https://github.com$file_url"
-              fi
-              file_name=$(basename "$file_url")
-              echo "Downloading $file_name..."
-              curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -L -O "$file_url"
-          done
 
-          for file in *.7z; do
-              if [ -f "$file" ]; then
-                  echo "Processing $file..."
-                  base_name=$(basename "$file" .7z)
-                  mkdir -p "temp_$base_name"
-                  7z x "$file" -o"temp_$base_name"
-                  cd "temp_$base_name"
-                  zip -r "../${base_name}.zip" .
-                  cd ..
-                  rm -rf "temp_$base_name" "$file"
-                  echo "Created ${base_name}.zip"
-              fi
-          done
+          API_URL="https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/tags/${{ steps.get_tag.outputs.tag }}"
+          echo "Fetching release info from $API_URL"
+
+          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              -s "$API_URL" > release.json
+
+          jq -r '.assets[] | select(.name | endswith(".7z")) | {name: .name, url: .browser_download_url}' release.json > assets.json
+
+          while IFS= read -r asset; do
+            file_name=$(echo "$asset" | jq -r '.name')
+            download_url=$(echo "$asset" | jq -r '.url')
+
+            echo "Downloading $file_name $download_url"
+            curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/octet-stream" \
+                -L -o "$file_name" "$download_url"
+
+            if [ -f "$file_name" ]; then
+              echo "Processing $file_name..."
+              base_name="${file_name%.7z}"
+              mkdir -p "temp_$base_name"
+              7z x "$file_name" -o"temp_$base_name"
+              cd "temp_$base_name"
+              zip -r "../${base_name}.zip" .
+              cd ..
+              rm -rf "temp_$base_name" "$file_name"
+              echo "Created ${base_name}.zip"
+            fi
+          done < <(jq -c '.' assets.json)
+
           echo "All files processed!"
+          rm -f release.json assets.json
+          ls -lh .
 
       - name: release
         uses: ncipollo/release-action@v1
