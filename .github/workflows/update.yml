@@ -26,8 +26,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y p7zip-full zip jq
 
-          7z --version
-          zip --version
+          7z -h
+          zip -h
 
       - name: Get latest tag
         id: get_tag
