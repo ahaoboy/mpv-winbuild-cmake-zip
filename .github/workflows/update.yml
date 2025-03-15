@@ -39,6 +39,7 @@ jobs:
 
       - name: 7z to zip
         run: |
+          WORK_DIR="mpv-files"
           mkdir -p "$WORK_DIR"
           cd "$WORK_DIR"
 
