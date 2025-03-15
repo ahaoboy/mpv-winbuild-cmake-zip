@@ -1,0 +1,75 @@
+name: update
+
+permissions:
+  contents: write
+
+on:
+  push:
+  schedule:
+    - cron:  '0 0 * * *'
+  pull_request:
+  workflow_dispatch:
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -CeEuo pipefail {0}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    name: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: install 7z zip
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full zip
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          latest_tag=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -s "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/tags" | grep -m 1 '"name":' | awk -F'"' '{print $4}')
+          echo $latest_tag
+          echo "tag=$latest_tag" >> $GITHUB_OUTPUT
+
+      - name: 7z to zip
+        run: |
+          WORK_DIR="mpv-files"
+          mkdir -p "$WORK_DIR"
+          cd "$WORK_DIR"
+          RELEASE_URL="https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/${{ steps.get_tag.outputs.tag }}"
+          echo "Downloading all .7z files from $RELEASE_URL..."
+          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -sL "$RELEASE_URL" | grep -o 'href="[^"]*\.7z"' | cut -d'"' -f2 | while read -r file_url; do
+              if [[ "$file_url" != http* ]]; then
+                  file_url="https://github.com$file_url"
+              fi
+              file_name=$(basename "$file_url")
+              echo "Downloading $file_name..."
+              curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -L -O "$file_url"
+          done
+
+          for file in *.7z; do
+              if [ -f "$file" ]; then
+                  echo "Processing $file..."
+                  base_name=$(basename "$file" .7z)
+                  mkdir -p "temp_$base_name"
+                  7z x "$file" -o"temp_$base_name"
+                  cd "temp_$base_name"
+                  zip -r "../${base_name}.zip" .
+                  cd ..
+                  rm -rf "temp_$base_name" "$file"
+                  echo "Created ${base_name}.zip"
+              fi
+          done
+          echo "All files processed!"
+
+      - name: release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.get_tag.outputs.tag }}
+          artifacts: mpv-files/*.zip
