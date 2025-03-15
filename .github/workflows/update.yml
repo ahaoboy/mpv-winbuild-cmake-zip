@@ -6,7 +6,7 @@ permissions:
 on:
   push:
   schedule:
-    - cron:  '0 0 * * *'
+    - cron: "0 0 * * *"
   pull_request:
   workflow_dispatch:
 
@@ -84,3 +84,7 @@ jobs:
           name: ${{ steps.get_tag.outputs.tag }}
           tag: ${{ steps.get_tag.outputs.tag }}
           artifacts: mpv-files/*.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+          commit: true
+          replacesArtifacts: true
